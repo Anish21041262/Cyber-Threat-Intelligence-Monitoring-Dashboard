@@ -3,9 +3,10 @@ import feedparser
 import pandas as pd
 from datetime import datetime
 import plotly.express as px
+from streamlit_autorefresh import st_autorefresh
 
 # -----------------------------
-# Streamlit Config
+# Streamlit Page Config
 # -----------------------------
 st.set_page_config(
     page_title="Threat Intelligence Dashboard",
@@ -13,7 +14,25 @@ st.set_page_config(
     page_icon="🛡️"
 )
 
+# -----------------------------
+# Dashboard Title
+# -----------------------------
 st.title("🛡️ Threat Intelligence News Dashboard")
+
+# -----------------------------
+# Auto Refresh Every 30 Seconds
+# -----------------------------
+st_autorefresh(
+    interval=30000,
+    key="threat_news_refresh"
+)
+
+# -----------------------------
+# Last Refresh Time
+# -----------------------------
+st.sidebar.success(
+    f"Last Refresh: {datetime.now().strftime('%H:%M:%S')}"
+)
 
 # -----------------------------
 # RSS Feed Sources
@@ -40,9 +59,15 @@ def fetch_news():
 
             for entry in feed.entries[:10]:
 
-                published = entry.get("published", "N/A")
+                published = entry.get(
+                    "published",
+                    "N/A"
+                )
 
-                summary = entry.get("summary", "No Summary")
+                summary = entry.get(
+                    "summary",
+                    "No Summary Available"
+                )
 
                 news = {
                     "Source": source,
@@ -55,12 +80,14 @@ def fetch_news():
                 all_news.append(news)
 
         except Exception as e:
-            st.error(f"Error fetching data from {source}: {e}")
+            st.error(
+                f"Error fetching data from {source}: {e}"
+            )
 
     return pd.DataFrame(all_news)
 
 # -----------------------------
-# Severity Tagging
+# Severity Classification
 # -----------------------------
 def assign_severity(title):
 
@@ -72,14 +99,17 @@ def assign_severity(title):
         "breach",
         "critical",
         "exploit",
-        "malware"
+        "malware",
+        "apt",
+        "remote code execution"
     ]
 
     medium_keywords = [
         "phishing",
         "vulnerability",
         "attack",
-        "botnet"
+        "botnet",
+        "trojan"
     ]
 
     for word in high_keywords:
@@ -93,25 +123,35 @@ def assign_severity(title):
     return "Low"
 
 # -----------------------------
-# Load News
+# Load News Data
 # -----------------------------
 df = fetch_news()
 
-# Check if dataframe is empty
+# -----------------------------
+# Check Empty Data
+# -----------------------------
 if df.empty:
-    st.warning("No news fetched from feeds.")
+
+    st.warning(
+        "No cybersecurity news fetched from feeds."
+    )
+
     st.stop()
 
+# -----------------------------
 # Add Severity Column
-df["Severity"] = df["Title"].apply(assign_severity)
+# -----------------------------
+df["Severity"] = df["Title"].apply(
+    assign_severity
+)
 
 # -----------------------------
 # Sidebar Filters
 # -----------------------------
-st.sidebar.header("Filters")
+st.sidebar.header("🔍 Filters")
 
 selected_source = st.sidebar.multiselect(
-    "Select Sources",
+    "Select News Sources",
     df["Source"].unique(),
     default=df["Source"].unique()
 )
@@ -123,7 +163,7 @@ selected_severity = st.sidebar.multiselect(
 )
 
 search_term = st.sidebar.text_input(
-    "Search News"
+    "Search News Headlines"
 )
 
 # -----------------------------
@@ -134,7 +174,11 @@ filtered_df = df[
     (df["Severity"].isin(selected_severity))
 ]
 
+# -----------------------------
+# Search Filter
+# -----------------------------
 if search_term:
+
     filtered_df = filtered_df[
         filtered_df["Title"].str.contains(
             search_term,
@@ -144,14 +188,17 @@ if search_term:
     ]
 
 # -----------------------------
-# Metrics
+# Dashboard Metrics
 # -----------------------------
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Total News", len(filtered_df))
+col1.metric(
+    "📰 Total News",
+    len(filtered_df)
+)
 
 col2.metric(
-    "High Severity",
+    "🔴 High Severity",
     len(
         filtered_df[
             filtered_df["Severity"] == "High"
@@ -160,12 +207,12 @@ col2.metric(
 )
 
 col3.metric(
-    "Sources",
+    "🌐 Sources",
     filtered_df["Source"].nunique()
 )
 
 # -----------------------------
-# Severity Chart
+# Severity Pie Chart
 # -----------------------------
 fig = px.pie(
     filtered_df,
@@ -173,12 +220,17 @@ fig = px.pie(
     title="Threat Severity Distribution"
 )
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(
+    fig,
+    use_container_width=True
+)
 
 # -----------------------------
-# Display News
+# Display Latest News
 # -----------------------------
-st.subheader("Latest Cybersecurity News")
+st.subheader(
+    "📢 Latest Cybersecurity News"
+)
 
 for index, row in filtered_df.iterrows():
 
@@ -197,7 +249,7 @@ for index, row in filtered_df.iterrows():
 
     {row['Summary'][:300]}...
 
-    [Read More]({row['Link']})
+    [🔗 Read Full Article]({row['Link']})
 
     ---
     """)
